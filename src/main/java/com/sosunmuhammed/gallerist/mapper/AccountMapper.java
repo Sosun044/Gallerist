@@ -29,7 +29,7 @@ public class AccountMapper {
         dto.setIban(account.getIban());
         dto.setAmount(account.getAmount());
         dto.setCurrencyType(account.getCurrencyType());
-        dto.setCurrencyType(account.getCurrencyType());
+        dto.setCreateTime(account.getCreateTime());
         return dto;
     }
 }

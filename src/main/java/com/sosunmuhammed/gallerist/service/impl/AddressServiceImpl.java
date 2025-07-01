@@ -5,6 +5,8 @@ import com.sosunmuhammed.gallerist.dto.DtoAddressIU;
 import com.sosunmuhammed.gallerist.exception.BaseException;
 import com.sosunmuhammed.gallerist.exception.ErrorMessage;
 import com.sosunmuhammed.gallerist.exception.MessageType;
+import com.sosunmuhammed.gallerist.mapper.AddressMapper;
+import com.sosunmuhammed.gallerist.model.Account;
 import com.sosunmuhammed.gallerist.model.Address;
 import com.sosunmuhammed.gallerist.repository.AddressRepository;
 import com.sosunmuhammed.gallerist.service.IAddressService;
@@ -19,36 +21,24 @@ import java.util.stream.Collectors;
 @Service
 public class AddressServiceImpl implements IAddressService {
 
-    @Autowired
-    private AddressRepository addressRepository;
 
+    private final AddressRepository addressRepository;
 
-    private Address createAddress(DtoAddressIU dtoAddressIU){
-        Address address = new Address();
-        address.setCreateTime(new Date());
-        BeanUtils.copyProperties(dtoAddressIU,address);
-
-        return address;
+    public AddressServiceImpl(AddressRepository addressRepository) {
+        this.addressRepository = addressRepository;
     }
 
     @Override
     public DtoAddress save(DtoAddressIU dtoAddressIU) {
-        DtoAddress dtoAddress = new DtoAddress();
-        Address savedAddress = addressRepository.save(createAddress(dtoAddressIU));
-        BeanUtils.copyProperties(savedAddress,dtoAddress);
-
-        return dtoAddress;
+        Address savedAddress = addressRepository.save(AddressMapper.toEntity(dtoAddressIU));
+        return AddressMapper.toDto(savedAddress);
     }
 
     @Override
     public List<DtoAddress> getAll() {
-        List<Address> addresses =  addressRepository.findAll();
-
-        return addresses.stream().map(address -> {
-            DtoAddress dtoAddress = new DtoAddress();
-            BeanUtils.copyProperties(address,dtoAddress);
-            return dtoAddress;
-        }).collect(Collectors.toList());
+        return addressRepository.findAll().stream()
+                .map(AddressMapper::toDto)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -57,9 +47,7 @@ public class AddressServiceImpl implements IAddressService {
                 orElseThrow(() ->new BaseException(
                         new ErrorMessage(MessageType.NO_RECORD_EXIST,id.toString())
                 ));
-        DtoAddress dtoAddress = new DtoAddress();
-        BeanUtils.copyProperties(address,dtoAddress);
-        return dtoAddress;
+        return AddressMapper.toDto(address);
     }
 
     @Override
@@ -72,17 +60,11 @@ public class AddressServiceImpl implements IAddressService {
 
     @Override
     public DtoAddress update(Long id, DtoAddressIU dtoAddressIU) {
-        Address address = addressRepository.findById(id)
-                .orElseThrow(() -> new BaseException(new ErrorMessage(MessageType.NO_RECORD_EXIST,id.toString())));
-        address.setCity(dtoAddressIU.getCity());
-        address.setDistrict(dtoAddressIU.getDistrict());
-        address.setNeighborhood(dtoAddressIU.getNeighborhood());
-        address.setStreet(dtoAddressIU.getStreet());
-
-        Address saved = addressRepository.save(address);
-        DtoAddress dtoAddress = new DtoAddress();
-        BeanUtils.copyProperties(saved,dtoAddress);
-        return dtoAddress;
+        Address address = addressRepository.findById(id).orElseThrow(()->
+            new BaseException(new ErrorMessage(MessageType.NO_RECORD_EXIST,id.toString())));
+        AddressMapper.updateEntity(address,dtoAddressIU);
+        Address updated = addressRepository.save(address);
+        return AddressMapper.toDto(updated);
     }
 
 
