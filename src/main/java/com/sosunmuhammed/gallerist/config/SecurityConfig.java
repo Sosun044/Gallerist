@@ -20,14 +20,16 @@ public class SecurityConfig {
     public static final String AUTHENTICATE = "/authenticate";
     public static final String REFRESH_TOKEN = "/refreshToken";
 
-    @Autowired
-    private AuthenticationProvider authenticationProvider;
 
-    @Autowired
-    private JWTAuthenticationFilter authenticationFilter;
+    private final AuthenticationProvider authenticationProvider;
+    private final JWTAuthenticationFilter authenticationFilter;
+    private final AuthEntryPoint authEntryPoint;
 
-    @Autowired
-    private AuthEntryPoint authEntryPoint;
+    public SecurityConfig(AuthenticationProvider authenticationProvider, JWTAuthenticationFilter authenticationFilter, AuthEntryPoint authEntryPoint) {
+        this.authenticationProvider = authenticationProvider;
+        this.authenticationFilter = authenticationFilter;
+        this.authEntryPoint = authEntryPoint;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
