@@ -7,6 +7,7 @@ import com.sosunmuhammed.gallerist.dto.DtoCustomerIU;
 import com.sosunmuhammed.gallerist.exception.BaseException;
 import com.sosunmuhammed.gallerist.exception.ErrorMessage;
 import com.sosunmuhammed.gallerist.exception.MessageType;
+import com.sosunmuhammed.gallerist.mapper.CustomerMapper;
 import com.sosunmuhammed.gallerist.model.Account;
 import com.sosunmuhammed.gallerist.model.Address;
 import com.sosunmuhammed.gallerist.model.Customer;
@@ -26,120 +27,70 @@ import java.util.stream.Collectors;
 @Service
 public class CustomerServiceImpl implements ICustomerService {
 
-    @Autowired
-    private AddressRepository addressRepository;
 
-    @Autowired
-    private AccountRepository accountRepository;
+    private final AddressRepository addressRepository;
+    private final AccountRepository accountRepository;
+    private final CustomerRepository customerRepository;
 
-    @Autowired
-    private CustomerRepository customerRepository;
+    public CustomerServiceImpl(AddressRepository addressRepository, AccountRepository accountRepository, CustomerRepository customerRepository) {
+        this.addressRepository = addressRepository;
+        this.accountRepository = accountRepository;
+        this.customerRepository = customerRepository;
+    }
 
     private Customer createCustomer(DtoCustomerIU dtoCustomerIU){
 
-        Optional<Address> optAddress = addressRepository.findById(dtoCustomerIU.getAddressId());
-        if (optAddress.isEmpty()){
-            throw new BaseException(new ErrorMessage(MessageType.NO_RECORD_EXIST,dtoCustomerIU.getAddressId().toString()));
-        }
-        Optional<Account> optAccount = accountRepository.findById(dtoCustomerIU.getAccountId());
-        if (optAccount.isEmpty()){
-            throw new BaseException(new ErrorMessage(MessageType.NO_RECORD_EXIST,dtoCustomerIU.getAccountId().toString()));
-        }
+        Address address = addressRepository.findById(dtoCustomerIU.getAddressId()).orElseThrow(
+                ()->new BaseException(new ErrorMessage(MessageType.NO_RECORD_EXIST,dtoCustomerIU.getAddressId().toString()))
+        );
+        Account account = accountRepository.findById(dtoCustomerIU.getAccountId()).orElseThrow(
+                ()->new BaseException(new ErrorMessage(MessageType.NO_RECORD_EXIST,dtoCustomerIU.getAccountId().toString()))
+        );
+        Customer savedCustomer = CustomerMapper.toEntity(dtoCustomerIU);
+        savedCustomer.setAddress(address);
+        savedCustomer.setAccount(account);
 
-        Customer customer = new Customer();
-        customer.setCreateTime(new Date());
-        BeanUtils.copyProperties(dtoCustomerIU,customer);
-        customer.setAddress(optAddress.get());
-        customer.setAccount(optAccount.get());
-
-        return customer;
+        return savedCustomer;
     }
 
     @Override
     public DtoCustomer save(DtoCustomerIU dtoCustomerIU) {
-        DtoCustomer dtoCustomer = new DtoCustomer();
-        DtoAddress dtoAddress = new DtoAddress();
-        DtoAccount dtoAccount = new DtoAccount();
-
-        Customer savedCustomer =  customerRepository.save(createCustomer(dtoCustomerIU));
-
-        BeanUtils.copyProperties(savedCustomer,dtoCustomer);
-        BeanUtils.copyProperties(savedCustomer.getAddress(),dtoAddress);
-        BeanUtils.copyProperties(savedCustomer.getAccount(),dtoAccount);
-
-        dtoCustomer.setAddress(dtoAddress);
-        dtoCustomer.setAccount(dtoAccount);
-
-        return dtoCustomer;
+        Customer savedCustomer = customerRepository.save(createCustomer(dtoCustomerIU));
+        return CustomerMapper.toDto(savedCustomer);
 
     }
 
     @Override
     public List<DtoCustomer> getAll() {
-        List<Customer> customerList = customerRepository.findAll();
 
-        return customerList.stream().map(customer -> {
-            DtoAddress dtoAddress = new DtoAddress();
-            DtoAccount dtoAccount = new DtoAccount();
-            DtoCustomer dtoCustomer = new DtoCustomer();
-            BeanUtils.copyProperties(customer,dtoCustomer);
-            BeanUtils.copyProperties(customer.getAccount(),dtoAccount);
-            BeanUtils.copyProperties(customer.getAddress(),dtoAddress);
-
-            dtoCustomer.setAccount(dtoAccount);
-            dtoCustomer.setAddress(dtoAddress);
-            return dtoCustomer;
-        }).collect(Collectors.toList());
+        return customerRepository.findAll().stream()
+                .map(CustomerMapper::toDto)
+                .collect(Collectors.toList());
     }
 
 
     @Override
     public DtoCustomer findCustomer(Long id) {
-        Optional<Customer> optCustomer = customerRepository.findById(id);
-
-        if (optCustomer.isEmpty()){
-            throw new BaseException(new ErrorMessage(MessageType.NO_RECORD_EXIST,id.toString()));
-        }
-        DtoCustomer dtoCustomer = new DtoCustomer();
-        DtoAddress dtoAddress = new DtoAddress();
-        DtoAccount dtoAccount = new DtoAccount();
-        BeanUtils.copyProperties(optCustomer.get(),dtoCustomer);
-        BeanUtils.copyProperties(optCustomer.get().getAddress(),dtoAddress);
-        BeanUtils.copyProperties(optCustomer.get().getAccount(),dtoAccount);
-        dtoCustomer.setAddress(dtoAddress);
-        dtoCustomer.setAccount(dtoAccount);
-
-        return dtoCustomer;
+        Customer customer = customerRepository.findById(id)
+                .orElseThrow(()->new BaseException(new ErrorMessage(MessageType.NO_RECORD_EXIST,id.toString())));
+        return CustomerMapper.toDto(customer);
     }
 
     @Override
     public void deleteCustomer(Long id) {
-        Optional<Customer> optCustomer = customerRepository.findById(id);
-        if (optCustomer.isEmpty()){
-            throw new BaseException(new ErrorMessage(MessageType.NO_RECORD_EXIST,id.toString()));
-        }
-        customerRepository.delete(optCustomer.get());
+        Customer customer = customerRepository.findById(id).orElseThrow(()->
+                new BaseException(new ErrorMessage(MessageType.NO_RECORD_EXIST,id.toString())));
+        customerRepository.delete(customer);
     }
 
     @Override
     public DtoCustomer update(Long id,DtoCustomerIU dtoCustomerIU) {
-        DtoCustomer dtoCustomer = new DtoCustomer();
-        DtoAddress dtoAddress = new DtoAddress();
-        DtoAccount dtoAccount = new DtoAccount();
+
         Customer customer = customerRepository.findById(id)
                 .orElseThrow(() -> new BaseException(new ErrorMessage(MessageType.NO_RECORD_EXIST,id.toString())));
-        customer.setFirstName(dtoCustomerIU.getFirstName());
-        customer.setLastName(dtoCustomerIU.getLastName());
-        customer.setTckn(dtoCustomerIU.getTckn());
-        customer.setBirthOfDate(dtoCustomerIU.getBirthOfDate());
-
-        Customer savedCustomer = customerRepository.save(customer);
-        BeanUtils.copyProperties(savedCustomer,dtoCustomer);
-        BeanUtils.copyProperties(savedCustomer.getAccount(),dtoAccount);
-        BeanUtils.copyProperties(savedCustomer.getAddress(),dtoAddress);
-        dtoCustomer.setAddress(dtoAddress);
-        dtoCustomer.setAccount(dtoAccount);
-        return dtoCustomer;
+        CustomerMapper.updateCustomer(customer,dtoCustomerIU);
+        Customer updateCustomer = customerRepository.save(customer);
+        return CustomerMapper.toDto(updateCustomer);
     }
 
 }

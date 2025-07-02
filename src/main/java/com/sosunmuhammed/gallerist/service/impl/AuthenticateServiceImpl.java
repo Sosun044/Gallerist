@@ -8,47 +8,44 @@ import com.sosunmuhammed.gallerist.exception.BaseException;
 import com.sosunmuhammed.gallerist.exception.ErrorMessage;
 import com.sosunmuhammed.gallerist.exception.MessageType;
 import com.sosunmuhammed.gallerist.jwt.JWTService;
+import com.sosunmuhammed.gallerist.mapper.RefreshTokenMapper;
+import com.sosunmuhammed.gallerist.mapper.UserMapper;
 import com.sosunmuhammed.gallerist.model.RefreshToken;
 import com.sosunmuhammed.gallerist.model.User;
 import com.sosunmuhammed.gallerist.repository.RefresTokenRepository;
 import com.sosunmuhammed.gallerist.repository.UserRepository;
 import com.sosunmuhammed.gallerist.service.IAuthenticateService;
-import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
 public class AuthenticateServiceImpl implements IAuthenticateService {
 
-    @Autowired
-    private UserRepository userRepository;
 
-    @Autowired
-    private BCryptPasswordEncoder bCryptPasswordEncoder;
+    private final UserRepository userRepository;
 
-    @Autowired
-    private AuthenticationProvider authenticationProvider;
 
-    @Autowired
-    private JWTService jwtService;
+    private final BCryptPasswordEncoder bCryptPasswordEncoder;
 
-    @Autowired
-    private RefresTokenRepository refresTokenRepository;
 
-    private User createUser(AuthRequest authRequest){
-        User user = new User();
-        user.setCreateTime(new Date());
-        user.setUsername(authRequest.getUsername());
-        user.setPassword(bCryptPasswordEncoder.encode(authRequest.getPassword()));
+    private final AuthenticationProvider authenticationProvider;
 
-        return user;
+    private final JWTService jwtService;
+
+
+    private final RefresTokenRepository refresTokenRepository;
+
+    public AuthenticateServiceImpl(UserRepository userRepository, BCryptPasswordEncoder bCryptPasswordEncoder, AuthenticationProvider authenticationProvider, JWTService jwtService, RefresTokenRepository refresTokenRepository) {
+        this.userRepository = userRepository;
+        this.bCryptPasswordEncoder = bCryptPasswordEncoder;
+        this.authenticationProvider = authenticationProvider;
+        this.jwtService = jwtService;
+        this.refresTokenRepository = refresTokenRepository;
     }
     private RefreshToken createRefreshToken(User user){
         RefreshToken refreshToken = new RefreshToken();
@@ -62,50 +59,47 @@ public class AuthenticateServiceImpl implements IAuthenticateService {
 
     @Override
     public DtoUser register(AuthRequest authRequest) {
-        DtoUser dtoUser = new DtoUser();
-        User savedUser = userRepository.save(createUser(authRequest));
-        BeanUtils.copyProperties(savedUser,dtoUser);
-        return dtoUser;
+        User savedUser = userRepository.save(UserMapper.toEntity(authRequest, bCryptPasswordEncoder));
+        return UserMapper.toDto(savedUser);
     }
 
     @Override
     public AuthResponse authenticate(AuthRequest authRequest) {
-
         try {
-            UsernamePasswordAuthenticationToken authenticationToken = new
-                    UsernamePasswordAuthenticationToken(authRequest.getUsername(),authRequest.getPassword());
-            authenticationProvider.authenticate(authenticationToken);
+            authenticationProvider.authenticate(
+                    new UsernamePasswordAuthenticationToken(authRequest.getUsername(), authRequest.getPassword())
+            );
 
-            Optional<User> optUser = userRepository.findByUsername(authRequest.getUsername());
+            User user = userRepository.findByUsername(authRequest.getUsername())
+                    .orElseThrow(() -> new BaseException(new ErrorMessage(MessageType.USER_NOT_FOUND, authRequest.getUsername())));
 
-            String accessToken = jwtService.generateToken(optUser.get());
+            String accessToken = jwtService.generateToken(user);
+            RefreshToken refreshToken = refresTokenRepository.save(RefreshTokenMapper.generate(user));
 
-            RefreshToken savedRefreshToken =  refresTokenRepository.save(createRefreshToken(optUser.get()));
+            return new AuthResponse(accessToken, refreshToken.getRefreshToken());
 
-            return new AuthResponse(accessToken,savedRefreshToken.getRefreshToken());
-
-        }catch (Exception e){
-            throw new BaseException(new ErrorMessage(MessageType.USERNAME_OR_PASSWORD_INVALID,e.getMessage()));
+        } catch (Exception e) {
+            throw new BaseException(new ErrorMessage(MessageType.USERNAME_OR_PASSWORD_INVALID, e.getMessage()));
         }
-
-    }
-    public boolean isValidRefreshToken(Date expiredDate){
-        return new Date().before(expiredDate);
     }
 
     @Override
     public AuthResponse refreshToken(RefreshTokenRequest request) {
-        Optional<RefreshToken> optRefreshToken =  refresTokenRepository.findByRefreshToken(request.getRefreshToken());
-        if (optRefreshToken.isEmpty()){
-            throw new BaseException(new ErrorMessage(MessageType.REFRESH_TOKEN_NOT_FOUND,request.getRefreshToken()));
-        }
-        if (!isValidRefreshToken(optRefreshToken.get().getExpiredDate())){
-            throw new BaseException(new ErrorMessage(MessageType.REFRESH_TOKEN_IS_EXPIRED,request.getRefreshToken()));
-        }
-        User user = optRefreshToken.get().getUser();
-        String accessToken =  jwtService.generateToken(user);
-        RefreshToken savedRefreshToken =  refresTokenRepository.save(createRefreshToken(user));
+        RefreshToken refreshToken = refresTokenRepository.findByRefreshToken(request.getRefreshToken())
+                .orElseThrow(() -> new BaseException(new ErrorMessage(MessageType.REFRESH_TOKEN_NOT_FOUND, request.getRefreshToken())));
 
-        return new AuthResponse(accessToken,savedRefreshToken.getRefreshToken());
+        if (!isValid(refreshToken.getExpiredDate())) {
+            throw new BaseException(new ErrorMessage(MessageType.REFRESH_TOKEN_IS_EXPIRED, request.getRefreshToken()));
+        }
+
+        User user = refreshToken.getUser();
+        String accessToken = jwtService.generateToken(user);
+        RefreshToken newRefresh = refresTokenRepository.save(RefreshTokenMapper.generate(user));
+
+        return new AuthResponse(accessToken, newRefresh.getRefreshToken());
     }
+    private boolean isValid(Date expiredDate){
+        return new Date().before(expiredDate);
+    }
+
 }
