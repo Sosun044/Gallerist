@@ -13,7 +13,7 @@ Spring Boot altyapısı ile geliştirilen proje, sektörel standartlara uygun **
 - 📦 SOLID prensiplerine uygun servis katmanı mimarisi  
 - 🔁 DTO ile güçlü servis/dış dünya ayrımı  
 - 🛠️ Gelişmiş exception mimarisi (BaseException, ErrorMessage, MessageType)  
-- ⚙️ Gerektiğinde BeanUtils yerine **custom mapper** kullanımı *(geliştirme aşamasında)*  
+- ⚙️ Gerektiğinde BeanUtils yerine **custom mapper** kullanımı  
 
 ---
 
